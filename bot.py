@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import logging
 import anthropic
@@ -17,61 +18,52 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
-ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 ALLOWED_USER_ID = int(os.environ.get("ALLOWED_USER_ID", "0"))
 
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-SYSTEM_PROMPT = """Ты — гроссмейстер и шахматный тренер мирового уровня. 
-Отвечаешь только на русском языке. 
-Анализируешь партии и дебюты как профессиональный тренер — конкретно, без воды.
-Используешь шахматную нотацию, указываешь конкретные ходы в квадратных скобках [Nf6].
-Оценки позиции: ± (белые лучше), ∓ (чёрные лучше), = (равно), +- (белые выигрывают), -+ (чёрные выигрывают).
-Telegram не поддерживает LaTeX — используй только обычный текст и эмодзи."""
+SYSTEM_PROMPT = """Ty -- grossmeyster i shakhmatnyy trener mirovogo urovnya.
+Otvechaesh tolko na russkom yazyke.
+Analiziruesh partii i debyuty kak professionalnyy trener -- konkretno, bez vody.
+Ispolzuesh shakhmatnuyu natatsiyu, ukazyvaesh konkretnyye khody v kvadratnykh skobkakh [Nf6].
+Otsenki pozitsii: +- (belye luchshe), -+ (chyornye luchshe), = (ravno).
+Telegram ne podderzhivayet LaTeX -- ispolzuy tolko obychnyy tekst."""
 
-ANALYZE_PROMPT = """Разбери партию как строгий тренер. Кратко и по делу — это Telegram, не книга.
-
-{pgn}
-
-Структура (каждый раздел — максимум 3-4 предложения):
-1. 📖 ДЕБЮТ — название, главная ошибка, лучший ход
-2. ⚔️ МИТТЕЛЬШПИЛЬ — 2 ключевых момента. Каждый ход обязательно помечай:
-   ✅ [ход] — сильный ход (объясни почему в 1 предложении)
-   ❌ [ход] — ошибка (объясни что надо было сыграть)
-   ⚠️ [ход] — неточность (есть лучше)
-   💡 [ход] — лучший ход в позиции
-3. 🏁 ФИНАЛ — как завершилась партия, ключевой момент с маркировкой
-4. 💡 УРОКИ — 3 конкретных вещи что тренировать после этой партии
-5. 📊 ОЦЕНКА — белые X/10, чёрные X/10, одно предложение почему
-
-Тон: прямо, без пафоса. Главная цель — научить, а не похвалить."""
+ANALYZE_PROMPT = """Razberi partiyu kak strogiy trener. Kratko i po delu -- eto Telegram, ne kniga.
 
 {pgn}
 
-Структура разбора:
-1. 📖 ДЕБЮТ — название, оценка первых ходов, отступления от теории
-2. ⚔️ МИТТЕЛЬШПИЛЬ — 2-4 ключевых момента, ошибки и лучшие альтернативы
-3. 🏁 ФИНАЛ — техника реализации или упущенные шансы
-4. 💡 ВЫВОДЫ — одна сильная и одна слабая сторона каждого игрока
+Struktura (kazhdyy razdel -- maksimum 3-4 predlozheniya):
 
-Пиши живо, как настоящий тренер. Конкретные ходы в [скобках].
+1. DEBYUT -- nazvaniye, glavnaya oshibka, luchshiy khod
 
-5. 💡 СОВЕТЫ — 3 конкретных совета что тренировать по итогам этой партии (дебют, тактика, эндшпиль)
-6. 📊 ОЦЕНКА — выставь оценку игры белых и чёрных по 10-балльной шкале с объяснением."""
+2. MITTELSHPIL -- 2 klyuchevykh momenta. Kazhdyy vazhdnyy khod pomechay:
+   [+] [khod] -- silnyy khod (pochemu v 1 predlozhenii)
+   [-] [khod] -- oshibka (chto nuzhno bylo sygrat)
+   [?] [khod] -- netochnost (yest luchshe)
+   [!] [khod] -- luchshiy khod v pozitsii
 
-OPENING_PROMPT = """Разбери этот дебют как шахматный тренер:
+3. FINAL -- kak zavershilas partiya, klyuchevoy moment s markirovkoy
+
+4. UROKI -- 3 konkretnyye veshchi chto trenirovat posle etoy partii
+
+5. OTSENKA -- belye X/10, chyornyye X/10, odno predlozheniye pochemu
+
+Ton: pryamo, bez pafosa. Oshibki nazyvay oshibkami. Glavnaya tsel -- nauchit."""
+
+OPENING_PROMPT = """Razberi etot debyut kak shakhmatnyy trener:
 
 {opening}
 
-Структура:
-1. 📖 НАЗВАНИЕ И ИСТОРИЯ — как называется, кто играл, ECO код
-2. 🎯 ИДЕЯ — главная стратегическая идея за белых и чёрных
-3. 📋 ОСНОВНЫЕ ВАРИАНТЫ — 2-3 главные линии с ходами
-4. ⚡ ТИПИЧНЫЕ ПЛАНЫ — что делать в миттельшпиле
-5. ⚠️ ЛОВУШКИ — главные тактические угрозы и ошибки новичков
-6. 💡 СОВЕТ — кому подходит этот дебют по стилю игры
+Struktura:
+1. NAZVANIYE I ISTORIYA -- kak nazyvayetsya, ECO kod
+2. IDEYA -- glavnaya strategicheskaya ideya za belykh i chyornykh
+3. OSNOVNYYE VARIANTY -- 2-3 glavnye linii s khodami v [skobkakh]
+4. TIPICHNYYE PLANY -- chto delat v mittelshpile
+5. LOVUSHKI -- glavnyye takticheskiye ugrozy i oshibki novichkov
+6. SOVET -- komu podkhodit etot debyut po stilyu igry
 
-Конкретные ходы в [скобках]. Пиши как тренер, не как энциклопедия."""
+Pishi zhivo, kak trener."""
 
 
 def is_authorized(update: Update) -> bool:
@@ -91,21 +83,20 @@ async def ask_claude(prompt: str) -> str:
     try:
         message = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=3000,
+            max_tokens=4000,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}],
         )
         return message.content[0].text
     except anthropic.APIError as e:
         logger.error(f"Anthropic API error: {e}")
-        return f"❌ Ошибка API: {str(e)}"
+        return f"Oshibka API: {str(e)}"
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        return "❌ Что-то пошло не так. Попробуй ещё раз."
+        return "Chto-to poshlo ne tak. Poprobuy eshchyo raz."
 
 
 async def send_long_message(update: Update, text: str):
-    """Разбивает длинные сообщения на части (лимит Telegram — 4096 символов)."""
     max_length = 4000
     if len(text) <= max_length:
         await update.message.reply_text(text)
@@ -121,7 +112,7 @@ async def send_long_message(update: Update, text: str):
         parts.append(text[:split_at])
         text = text[split_at:].lstrip()
     for i, part in enumerate(parts):
-        suffix = f"\n\n_{i+1}/{len(parts)}_" if len(parts) > 1 else ""
+        suffix = f"\n\n{i+1}/{len(parts)}" if len(parts) > 1 else ""
         await update.message.reply_text(part + suffix)
 
 
@@ -129,38 +120,34 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         return
     text = (
-        "♟️ *Шахматный тренажёр*\n\n"
-        "Я — твой персональный гроссмейстер. Умею:\n\n"
-        "📋 *Анализировать партии* — скинь PGN или просто ходы\n"
-        "📖 *Разбирать дебюты* — название или начальные ходы\n\n"
-        "Команды:\n"
-        "/analyze — разобрать партию (потом скинь PGN)\n"
-        "/opening — разобрать дебют (потом напиши название или ходы)\n"
-        "/help — справка\n\n"
-        "Или просто скинь партию — сам определю что это."
+        "Shakhmatnyy trenazhyor\n\n"
+        "Umeyu:\n"
+        "- Analizirovat partii -- skin PGN ili prosto khody\n"
+        "- Razbirat debyuty -- nazvaniye ili nachalnyye khody\n\n"
+        "Komandy:\n"
+        "/analyze -- razbor partii\n"
+        "/opening -- razbor debyuta\n"
+        "/help -- spravka\n\n"
+        "Ili prosto skin partiyu -- sam opredelu chto eto."
     )
-    await update.message.reply_text(text, parse_mode="Markdown")
+    await update.message.reply_text(text)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         return
     text = (
-        "📚 *Как пользоваться:*\n\n"
-        "*Анализ партии:*\n"
-        "Просто скинь ходы:\n"
-        "`1. e4 e5 2. Nf3 Nc6 3. Bb5...`\n\n"
-        "Или полный PGN с тегами:\n"
-        "`[White \"Kasparov\"]`\n"
-        "`[Black \"Karpov\"]`\n"
-        "`1. d4 d5 2. c4...`\n\n"
-        "*Разбор дебюта:*\n"
-        "Напиши `/opening` и затем:\n"
-        "— название: `Сицилианская защита`\n"
-        "— или ходы: `1. e4 c5 2. Nf3 d6`\n\n"
-        "*Совет:* Можно просто скинуть партию без команды — бот сам поймёт."
+        "Kak polzovatsya:\n\n"
+        "Analiz partii:\n"
+        "Prosto skin khody:\n"
+        "1. e4 e5 2. Nf3 Nc6 3. Bb5...\n\n"
+        "Razbor debyuta:\n"
+        "Napishi /opening i zatom:\n"
+        "- nazvaniye: Sitsilianskaya zashchita\n"
+        "- ili khody: 1. e4 c5 2. Nf3 d6\n\n"
+        "Mozhno prosto skinut partiyu bez komandy -- bot sam poymet."
     )
-    await update.message.reply_text(text, parse_mode="Markdown")
+    await update.message.reply_text(text)
 
 
 async def analyze_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -168,9 +155,8 @@ async def analyze_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     context.user_data["mode"] = "analyze"
     await update.message.reply_text(
-        "📋 Скинь партию в формате PGN или просто ходами.\n"
-        "Например: `1. e4 e5 2. Nf3 Nc6 3. Bb5 a6...`",
-        parse_mode="Markdown",
+        "Skin partiyu v formate PGN ili prosto khodami.\n"
+        "Primer: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6..."
     )
 
 
@@ -179,9 +165,8 @@ async def opening_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     context.user_data["mode"] = "opening"
     await update.message.reply_text(
-        "📖 Напиши название дебюта или начальные ходы.\n"
-        "Например: `Испанская партия` или `1. e4 e5 2. Nf3 Nc6 3. Bb5`",
-        parse_mode="Markdown",
+        "Napishi nazvaniye debyuta ili nachalnyye khody.\n"
+        "Primer: Ispanskaya partiya ili 1. e4 e5 2. Nf3 Nc6 3. Bb5"
     )
 
 
@@ -192,7 +177,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     mode = context.user_data.get("mode", "auto")
 
-    await update.message.reply_text("🧠 Анализирую...")
+    await update.message.reply_text("Analiziruyu...")
 
     if mode == "analyze" or (mode == "auto" and looks_like_pgn(text)):
         prompt = ANALYZE_PROMPT.format(pgn=text)
@@ -201,7 +186,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         prompt = OPENING_PROMPT.format(opening=text)
         context.user_data["mode"] = "auto"
     else:
-        # Авто-режим: короткий текст без ходов = вопрос о дебюте
         if len(text) < 100 and not looks_like_pgn(text):
             prompt = OPENING_PROMPT.format(opening=text)
         else:
@@ -213,10 +197,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(application: Application):
     await application.bot.set_my_commands([
-        BotCommand("start", "Начало работы"),
-        BotCommand("analyze", "Разобрать партию"),
-        BotCommand("opening", "Разобрать дебют"),
-        BotCommand("help", "Справка"),
+        BotCommand("start", "Nachalo raboty"),
+        BotCommand("analyze", "Razbor partii"),
+        BotCommand("opening", "Razbor debyuta"),
+        BotCommand("help", "Spravka"),
     ])
 
 
@@ -227,7 +211,7 @@ def main():
     app.add_handler(CommandHandler("analyze", analyze_command))
     app.add_handler(CommandHandler("opening", opening_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    logger.info("Бот запущен...")
+    logger.info("Bot zapushchen...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
