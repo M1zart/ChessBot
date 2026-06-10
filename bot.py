@@ -30,48 +30,54 @@ client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 DB_PATH = "/app/archive.db"
 
-SYSTEM_PROMPT = """Ty -- grossmeyster i shakhmatnyy trener mirovogo urovnya.
-Otvechaesh tolko na russkom yazyke.
-Analiziruesh partii i debyuty kak professionalnyy trener -- konkretno, bez vody.
-Ispolzuesh shakhmatnuyu notaciyu, ukazyvaesh konkretnyye khody v kvadratnykh skobkakh [Nf6].
-Otsenki pozicii: +- (belye luchshe), -+ (chyornye luchshe), = (ravno).
-VAZNO: Ne ispolzuy Markdown -- nikakikh **, ##, *, _. Tolko obychnyy tekst."""
+SYSTEM_PROMPT = (
+    "Ты -- гроссмейстер и шахматный тренер мирового уровня.\n"
+    "Отвечаешь ТОЛЬКО на русском языке, обычным русским текстом.\n"
+    "Никакого Markdown: никаких **, ##, *, _, никаких решёток и звёздочек.\n"
+    "Разделяй разделы пустой строкой.\n"
+    "Название каждого раздела пиши ЗАГЛАВНЫМИ БУКВАМИ на отдельной строке.\n"
+    "Используй шахматную нотацию, ходы в квадратных скобках [Nf6].\n"
+    "Оценки позиции: +- (белые лучше), -+ (чёрные лучше), = (равно)."
+)
 
-ANALYZE_PROMPT = """Razberi partiyu kak strogiy trener. Kratko i po delu.
+ANALYZE_PROMPT = (
+    "Разбери партию как строгий тренер. Кратко и по делу.\n\n"
+    "{pgn}\n\n"
+    "Структура (каждый раздел -- максимум 3-4 предложения):\n\n"
+    "ДЕБЮТ\n"
+    "Название, главная ошибка, лучший ход.\n\n"
+    "МИТТЕЛЬШПИЛЬ\n"
+    "2 ключевых момента. Каждый важный ход помечай:\n"
+    "[+] [ход] -- сильный ход (почему в 1 предложении)\n"
+    "[-] [ход] -- ошибка (что нужно было сыграть)\n"
+    "[?] [ход] -- неточность (есть лучше)\n"
+    "[!] [ход] -- лучший ход в позиции\n\n"
+    "ФИНАЛ\n"
+    "Как завершилась партия, ключевой момент с маркировкой.\n\n"
+    "УРОКИ\n"
+    "3 конкретные вещи что тренировать после этой партии.\n\n"
+    "ОЦЕНКА\n"
+    "Белые: X/10, Чёрные: X/10. Одно предложение почему.\n\n"
+    "Тон: прямо, без пафоса. Ошибки называй ошибками."
+)
 
-{pgn}
-
-Struktura (kazhdyy razdel -- maksimum 3-4 predlozheniya):
-
-1. DEBYUT -- nazvaniye, glavnaya oshibka, luchshiy khod
-
-2. MITTELSHPIL -- 2 klyuchevykh momenta s markirovkoy khodov:
-   [+] [khod] -- silnyy khod (pochemu v 1 predlozhenii)
-   [-] [khod] -- oshibka (chto nuzhno bylo sygrat)
-   [?] [khod] -- netochnost (yest luchshe)
-   [!] [khod] -- luchshiy khod v pozicii
-
-3. FINAL -- kak zavershilas partiya, klyuchevoy moment
-
-4. UROKI -- 3 konkretnyye veshchi chto trenirovat
-
-5. OTSENKA -- Belye: X/10, Chyornye: X/10. Odno predlozheniye pochemu.
-
-Ton: pryamo, bez pafosa. Oshibki nazyvay oshibkami."""
-
-OPENING_PROMPT = """Razberi etot debyut kak shakhmatnyy trener:
-
-{opening}
-
-Struktura:
-1. NAZVANIYE -- kak nazyvayetsya, ECO kod
-2. IDEYA -- glavnaya strategicheskaya ideya za belykh i chyornykh
-3. OSNOVNYYE VARIANTY -- 2-3 glavnye linii s khodami v [skobkakh]
-4. TIPICHNYYE PLANY -- chto delat v mittelshpile
-5. LOVUSHKI -- glavnyye oshibki novichkov
-6. SOVET -- komu podkhodit etot debyut
-
-Ne ispolzuy Markdown. Tolko obychnyy tekst."""
+OPENING_PROMPT = (
+    "Разбери этот дебют как шахматный тренер:\n\n"
+    "{opening}\n\n"
+    "Структура:\n\n"
+    "НАЗВАНИЕ\n"
+    "Как называется, ECO код.\n\n"
+    "ИДЕЯ\n"
+    "Главная стратегическая идея за белых и чёрных.\n\n"
+    "ОСНОВНЫЕ ВАРИАНТЫ\n"
+    "2-3 главные линии с ходами в [скобках].\n\n"
+    "ТИПИЧНЫЕ ПЛАНЫ\n"
+    "Что делать в миттельшпиле.\n\n"
+    "ЛОВУШКИ\n"
+    "Главные ошибки новичков.\n\n"
+    "СОВЕТ\n"
+    "Кому подходит этот дебют по стилю игры."
+)
 
 
 # --- База данных ---
@@ -134,7 +140,7 @@ def extract_title(pgn: str, analysis: str) -> str:
     black = re.search(r'\[Black "([^"]+)"\]', pgn)
     if white and black:
         return f"{white.group(1)} vs {black.group(1)}"
-    first_line = analysis.split("\n")[0][:40] if analysis else "Partiya"
+    first_line = analysis.split("\n")[0][:40] if analysis else "Партия"
     return first_line.strip()
 
 
@@ -174,10 +180,10 @@ async def ask_claude(prompt: str) -> str:
         return clean_markdown(message.content[0].text)
     except anthropic.APIError as e:
         logger.error(f"Anthropic API error: {e}")
-        return f"Oshibka API: {str(e)}"
+        return f"Ошибка API: {str(e)}"
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        return "Chto-to poshlo ne tak. Poprobuy eshchyo raz."
+        return "Что-то пошло не так. Попробуй ещё раз."
 
 
 # --- Отправка длинных сообщений ---
@@ -207,9 +213,9 @@ async def send_long_message(update: Update, text: str, reply_markup=None):
 
 def main_menu():
     keyboard = [
-        [InlineKeyboardButton("Analiz partii", callback_data="menu_analyze")],
-        [InlineKeyboardButton("Razbor debyuta", callback_data="menu_opening")],
-        [InlineKeyboardButton("Moy arkhiv", callback_data="menu_archive")],
+        [InlineKeyboardButton("Анализ партии", callback_data="menu_analyze")],
+        [InlineKeyboardButton("Разбор дебюта", callback_data="menu_opening")],
+        [InlineKeyboardButton("Мой архив", callback_data="menu_archive")],
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -220,8 +226,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         return
     await update.message.reply_text(
-        "Shakhmatnyy trenazhyor\n\n"
-        "Vyberi deystviye ili prosto skin partiyu -- sam razberus:",
+        "Шахматный тренажёр\n\nВыбери действие или просто скинь партию -- сам разберусь:",
         reply_markup=main_menu()
     )
 
@@ -230,13 +235,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         return
     await update.message.reply_text(
-        "Kak polzovatsya:\n\n"
-        "Analiz partii -- skin khody v lyubom formate:\n"
+        "Как пользоваться:\n\n"
+        "Анализ партии -- скинь ходы в любом формате:\n"
         "1. e4 e5 2. Nf3 Nc6 3. Bb5...\n\n"
-        "Razbor debyuta -- napishi nazvaniye:\n"
-        "Sitsilianskaya zashchita\n\n"
-        "Arkhiv -- vse tvoi razobrannyye partii\n\n"
-        "Mozhno prosto skinut partiyu -- bot sam poymet.",
+        "Разбор дебюта -- напиши название:\n"
+        "Сицилианская защита\n\n"
+        "Архив -- все твои разобранные партии\n\n"
+        "Можно просто скинуть партию -- бот сам поймёт.",
         reply_markup=main_menu()
     )
 
@@ -253,22 +258,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "menu_analyze":
         context.user_data["mode"] = "analyze"
         await query.message.reply_text(
-            "Skin partiyu v formate PGN ili prosto khodami.\n"
-            "Primer: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6..."
+            "Скинь партию в формате PGN или просто ходами.\n"
+            "Пример: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6..."
         )
 
     elif data == "menu_opening":
         context.user_data["mode"] = "opening"
         await query.message.reply_text(
-            "Napishi nazvaniye debyuta ili nachalnyye khody.\n"
-            "Primer: Ispanskaya partiya"
+            "Напиши название дебюта или начальные ходы.\n"
+            "Пример: Испанская партия"
         )
 
     elif data == "menu_archive":
         rows = get_archive(update.effective_user.id)
         if not rows:
             await query.message.reply_text(
-                "Arkhiv pust. Razberite partiyu -- ona sokhranitsya avtomaticheski.",
+                "Архив пуст. Разбери партию -- она сохранится автоматически.",
                 reply_markup=main_menu()
             )
             return
@@ -276,9 +281,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for row in rows:
             label = f"{row[2]} -- {row[1][:30]}"
             keyboard.append([InlineKeyboardButton(label, callback_data=f"view_{row[0]}")])
-        keyboard.append([InlineKeyboardButton("Nazad", callback_data="menu_main")])
+        keyboard.append([InlineKeyboardButton("Назад", callback_data="menu_main")])
         await query.message.reply_text(
-            "Tvoy arkhiv (poslednie 20 partiy):",
+            "Твой архив (последние 20 партий):",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
@@ -286,13 +291,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         record_id = int(data.split("_")[1])
         row = get_analysis_by_id(record_id, update.effective_user.id)
         if not row:
-            await query.message.reply_text("Zapis ne naydena.")
+            await query.message.reply_text("Запись не найдена.")
             return
         pgn, analysis, title, created_at = row
         header = f"{title}\n{created_at}\n\n"
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Udalit", callback_data=f"del_{record_id}")],
-            [InlineKeyboardButton("Nazad k arkhivu", callback_data="menu_archive")],
+            [InlineKeyboardButton("Удалить", callback_data=f"del_{record_id}")],
+            [InlineKeyboardButton("Назад к архиву", callback_data="menu_archive")],
         ])
         text = header + analysis
         if len(text) <= 4000:
@@ -304,16 +309,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("del_"):
         record_id = int(data.split("_")[1])
         delete_from_archive(record_id, update.effective_user.id)
-        await query.message.reply_text(
-            "Zapis udalena.",
-            reply_markup=main_menu()
-        )
+        await query.message.reply_text("Запись удалена.", reply_markup=main_menu())
 
     elif data == "menu_main":
-        await query.message.reply_text(
-            "Glavnoye menyu:",
-            reply_markup=main_menu()
-        )
+        await query.message.reply_text("Главное меню:", reply_markup=main_menu())
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -324,7 +323,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mode = context.user_data.get("mode", "auto")
     user_id = update.effective_user.id
 
-    await update.message.reply_text("Analiziruyu...")
+    await update.message.reply_text("Анализирую...")
 
     is_pgn = False
     if mode == "analyze" or (mode == "auto" and looks_like_pgn(text)):
@@ -353,8 +352,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def post_init(application: Application):
     init_db()
     await application.bot.set_my_commands([
-        BotCommand("start", "Glavnoye menyu"),
-        BotCommand("help", "Spravka"),
+        BotCommand("start", "Главное меню"),
+        BotCommand("help", "Справка"),
     ])
 
 
@@ -364,7 +363,7 @@ def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    logger.info("Bot zapushchen...")
+    logger.info("Бот запущен...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
