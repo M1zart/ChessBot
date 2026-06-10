@@ -18,7 +18,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
-ALLOWED_USER_ID = int(os.environ.get("ALLOWED_USER_ID", "0"))
+ALLOWED_USER_IDS = set(
+    int(x.strip()) for x in os.environ.get("ALLOWED_USER_IDS", "0").split(",") if x.strip()
+)
 
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
@@ -67,9 +69,9 @@ Pishi zhivo, kak trener."""
 
 
 def is_authorized(update: Update) -> bool:
-    if ALLOWED_USER_ID == 0:
+    if 0 in ALLOWED_USER_IDS:
         return True
-    return update.effective_user.id == ALLOWED_USER_ID
+    return update.effective_user.id in ALLOWED_USER_IDS
 
 
 def looks_like_pgn(text: str) -> bool:
